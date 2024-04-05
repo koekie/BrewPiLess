@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 OUTDIR="cheader"
 DISTDIR="dist"

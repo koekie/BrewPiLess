@@ -8,6 +8,7 @@
 htmljs/.sass-cache/
 htmljs/build/
 htmljs/node_modules/
+*_backup_*
 .vscode/launch.json
 .DS_Store
 .vscode/*.db
