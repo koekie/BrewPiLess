@@ -7,7 +7,12 @@ if [ ! -d $OUTDIR ]; then
     echo "$OUTDIR not found!"
     mkdir "$OUTDIR"
 fi
-rm $OUTDIR/*.h
+if [ "$(ls -A $OUTDIR)" ]; then
+    echo "Removing all files from $OUTDIR"
+    rm $OUTDIR/*.h || true
+else
+    echo "$OUTDIR is empty, nothing needs to be removed"
+fi
 
 htmlfiles=(index_s.htm.gz control_s.htm.gz config.htm.gz setup.htm.gz logging.htm.gz gravity.htm.gz gravity_e32.htm.gz pressure.htm.gz backup.htm.gz)
 
@@ -20,22 +25,22 @@ languages=(norwegian english spanish portuguese-br slovak chinese italian)
 
 gen_C_file()
 {
-lang=$1
+lang=$1;
 for ((index=0; index<${#htmlfiles[@]}; index++)); do
     srcdir="dist/$lang"
 
-#   echo "[$index]: ${htmlfiles[$index]}"
-   input="$srcdir/${htmlfiles[$index]}"
-   output="$OUTDIR/${lang}_${outfiles[$index]}.h"
-   variable=${variables[$index]}
-   #echo "input: $input output file: $output with variables $variable "
-   xxd -i  "$input" > $output 
-   echo "processing $output"
-   sed -i "s/unsigned char .\+\[\]/const unsigned char $variable\[\] PROGMEM/" $output
+    echo "[$index]: ${htmlfiles[$index]}"
+    input="$srcdir/${htmlfiles[$index]}"
+    output="$OUTDIR/${lang}_${outfiles[$index]}.h"
+    variable=${variables[$index]}
+    echo "input: $input output file: $output with variables $variable "
+    xxd -i  "$input" > $output
+    echo "processing $output"
+    sed -i "s/unsigned char .\+\[\]/const unsigned char $variable\[\] PROGMEM/" $output
 done
 }
 
-for lang in "${languages[@]}"
-do
-gen_C_file $lang
+for lang in "${languages[@]}"; do
+    gen_C_file $lang
 done
+

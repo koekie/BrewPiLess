@@ -624,7 +624,7 @@ var PL = {
 /* end of PL*/
 var BrewPiSetting = {
     valid: false,
-    maxDegree: 30,
+    maxDegree: 50,
     minDegree: 0,
     tempUnit: 'C'
 };

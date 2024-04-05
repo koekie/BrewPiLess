@@ -97,9 +97,9 @@ EmbeddedFileMapEntry fileMaps[]={
 {file_config,config_htm_gz,sizeof(config_htm_gz),true},
 {file_pressure,pressure_htm_gz,sizeof(pressure_htm_gz),true},
 {file_testcmd_htm,(const uint8_t *)data_testcmd_htm,0,false},
-{file_lcd_htm,lcd_htm_gz,sizeof(lcd_htm_gz),true},
-{file_backup,backup_htm_gz,sizeof(backup_htm_gz),true}
+{file_lcd_htm,lcd_htm_gz,sizeof(lcd_htm_gz),true}
 };
+//{file_backup,backup_htm_gz,sizeof(backup_htm_gz),true}
 
 #else
 #error "classic frontend is deprecated!"
