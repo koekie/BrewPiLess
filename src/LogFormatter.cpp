@@ -38,12 +38,6 @@ size_t printFloat(char* buffer,float value,int precision,bool valid,const char* 
 
 size_t dataSprintf(char *buffer,const char *format,const char* invalid)
 {
-	uint8_t state, mode;
-	float beerSet,fridgeSet;
-	float beerTemp,fridgeTemp,roomTemp;
-
-	brewPi.getAllStatus(&state,&mode,& beerTemp,& beerSet,& fridgeTemp,& fridgeSet,& roomTemp);
-
 	int i=0;
 	size_t d=0;
 	for(i=0;i< (int) strlen(format);i++){
@@ -54,14 +48,20 @@ size_t dataSprintf(char *buffer,const char *format,const char* invalid)
 			if(ch == '%'){
 				buffer[d++]=ch;
 			}else if(ch == 'b'){
+				float  beerTemp = brewPi.getBeerTemp();
+
 				d += printFloat(buffer+d,beerTemp,1,IS_FLOAT_TEMP_VALID(beerTemp),invalid);
 			}else if(ch == 'B'){
+				float  beerSet = brewPi.getBeerSet();
 				d += printFloat(buffer+d,beerSet,1,IS_FLOAT_TEMP_VALID(beerSet),invalid);
 			}else if(ch == 'f'){
+				float fridgeTemp = brewPi.getFridgeTemp();
 				d += printFloat(buffer+d,fridgeTemp,1,IS_FLOAT_TEMP_VALID(fridgeTemp),invalid);
 			}else if(ch == 'F'){
+				float fridgeSet = brewPi.getFridgeSet();
 				d += printFloat(buffer+d,fridgeSet,1,IS_FLOAT_TEMP_VALID(fridgeSet),invalid);
 			}else if(ch == 'r'){
+				float  roomTemp = brewPi.getRoomTemp();
 				d += printFloat(buffer+d,roomTemp,1,IS_FLOAT_TEMP_VALID(roomTemp),invalid);
 			}else if(ch == 'g'){
 				float sg=externalData.gravity();
@@ -91,19 +91,17 @@ size_t dataSprintf(char *buffer,const char *format,const char* invalid)
 			}else if(ch == 'u'){
 				d += sprintInt(buffer+d, externalData.lastUpdate());
 			}else if(ch == 'U'){
-				char unit;
-				uint8_t unused1,unused2;
-				brewPi.getLogInfo(&unit,&unused1,&unused2);
+				char unit = brewPi.getUnit();
 				*(buffer+d)= unit;
 				d++;
 			}else if(ch == 'm'){
-				*(buffer+d)= modeInInteger(mode);
+				*(buffer+d)= modeInInteger(brewPi.getMode());
 				d++;
 			}else if(ch == 'M'){
-				*(buffer+d)= mode;
+				*(buffer+d)= brewPi.getMode();
 				d++;
 			}else if(ch == 's'){
-				*(buffer+d)= '0' + state;
+				*(buffer+d)= '0' + brewPi.getState();
 				d++;
 			}else if(ch == 'H'){
 				strcpy(buffer+d,theSettings.systemConfiguration()->hostnetworkname);
@@ -184,7 +182,14 @@ size_t nonNullJson(char* buffer,size_t size)
 	float beerSet,fridgeSet;
 	float beerTemp,fridgeTemp,roomTemp;
 
-	brewPi.getAllStatus(&state,&mode,& beerTemp,& beerSet,& fridgeTemp,& fridgeSet,& roomTemp);
+    state = brewPi.getState();
+    mode = brewPi.getMode();
+    beerTemp = brewPi.getBeerTemp();
+    beerSet = brewPi.getBeerSet();
+    fridgeTemp = brewPi.getFridgeTemp();
+    fridgeSet = brewPi.getFridgeSet();
+    roomTemp = brewPi.getRoomTemp();
+
 
 	root[KeyState] = state;
 
@@ -201,7 +206,10 @@ size_t nonNullJson(char* buffer,size_t size)
 
 	#if EnableHumidityControlSupport
 	if(humidityControl.isHumidityValid()) root[KeyFridgeHumidity] = humidityControl.humidity();
-	if(humidityControl.isRoomSensorInstalled()) root[KeyRoomHumidity] = humidityControl.roomHumidity();
+	if(humidityControl.isRoomSensorInstalled()){
+		uint8_t rh = humidityControl.roomHumidity();
+		if(rh<100) root[KeyRoomHumidity] =rh;
+	}
 	#endif
 
 	float sg=externalData.gravity();
@@ -210,17 +218,20 @@ size_t nonNullJson(char* buffer,size_t size)
 		root[KeyPlato] = externalData.plato();
 	}
 
-	// iSpindel data
+	// Hydrometer data
 	float vol=externalData.deviceVoltage();
-	if(IsVoltageValid(vol)){
-		 root[KeyVoltage] = vol;
-		float at=externalData.auxTemp();
-		if(IS_FLOAT_TEMP_VALID(at)) root[KeyAuxTemp] = at;
-		float tilt=externalData.tiltValue();
-		root[KeyTilt]=tilt;
-		int16_t rssi=externalData.rssi();
-		root[KeyIspindelRssi]=rssi;
-	}
+	if(IsVoltageValid(vol)) root[KeyVoltage] = vol;
+	float at=externalData.auxTemp();
+	if(IS_FLOAT_TEMP_VALID(at)) root[KeyAuxTemp] = at;
+	
+	float tilt=externalData.tiltValue();
+	if(tilt >0)	root[KeyTilt]=tilt;
+	
+	int16_t rssi=externalData.rssi();
+	if(IsRssiValid(rssi)) root[KeyWirelessHydrometerRssi]=rssi;
+	const char *hname=externalData.getDeviceName();
+	if(hname) root[KeyWirelessHydrometerName] = hname;
+
 	#if ARDUINOJSON_VERSION_MAJOR == 6
 	return	serializeJson(root,buffer,size);
 	#else

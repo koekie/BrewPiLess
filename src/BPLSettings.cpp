@@ -153,6 +153,7 @@ bool BPLSettings::autoCapSettingsSanity(void){ return true;}
 
 #define KeyDisplayMode "dis"
 
+#define KeyGlycol "glycol"
 
 bool BPLSettings::systemConfigurationSanity(void){
 	SystemConfiguration *cfg=  systemConfiguration();
@@ -199,7 +200,7 @@ void BPLSettings::defaultSystemConfiguration(void){
     syscfg->gw = (uint32_t) IPAddress(0,0,0,0);
     syscfg->netmask = (uint32_t) IPAddress(0,0,0,0);
     syscfg->dns = (uint32_t) IPAddress(0,0,0,0);
-
+    syscfg->glycolChilling = 0;
 	#if TWOFACED_LCD
 	syscfg->displayMode = 0;
 	#endif
@@ -238,7 +239,7 @@ bool BPLSettings::dejsonSystemConfiguration(String json){
 		#if TWOFACED_LCD		
 		syscfg->displayMode = root[KeyDisplayMode];
 		#endif
-
+        syscfg->glycolChilling=root[KeyGlycol];
 		return true;
     }
 	return false;
@@ -268,6 +269,7 @@ String BPLSettings::jsonSystemConfiguration(void){
     root[KeyGateway]= IPAddress(syscfg->gw).toString();
     root[KeyNetmask]= IPAddress(syscfg->netmask).toString();
 	root[KeyDNS] = IPAddress(syscfg->dns).toString();
+	root[KeyGlycol] = syscfg->glycolChilling;
 
 	#if TWOFACED_LCD		
 	root[KeyDisplayMode] = syscfg->displayMode;
@@ -312,9 +314,9 @@ String BPLSettings::jsonSystemConfiguration(void){
 // gravity device configuration
 
 #define KeyGravityDeviceType "dev"
-#define KeyTempCorrection "tc"
-#define KeyCorrectionTemp "ctemp"
-#define KeyCalculateGravity "cbpl"
+#define KeyCalibrateFormula "cal"
+#define KeyGravityOffset "off"
+
 #define KeyCoefficientA0 "a0"
 #define KeyCoefficientA1 "a1"
 #define KeyCoefficientA2 "a2"
@@ -323,15 +325,17 @@ String BPLSettings::jsonSystemConfiguration(void){
 #define KeyStableGravityThreshold "stpt"
 #define KeyNumberCalPoints "npt"
 #define KeyUsePlato "plato"
+
 #define KeyTiltColor "color"
-#define KeyTiltCalibrationPoints "tcpts"
-#define KeyTiltCoefficients "tiltcoe"
+#define KeyCalibrationPoints "calpts"
+
+#define KeyPillMacAddress "mac"
 
 
 bool BPLSettings::gravityConfigSantiy(){
 	GravityDeviceConfiguration *gdc = &_data.gdc;
 
-	if(gdc->gravityDeviceType > 2){
+	if(gdc->gravityDeviceType > MaxDeviceTypeNumber){
 		defaultGravityConfig();
 		return false;
 	}
@@ -359,49 +363,49 @@ bool BPLSettings::dejsonGravityConfig(char* json)
         GravityDeviceConfiguration *gdc = &_data.gdc;
 
 		gdc->gravityDeviceType=root[KeyGravityDeviceType];
-		gdc->ispindelTempCal = root[KeyTempCorrection];
-
-//		if(gdc->ispindelTempCal){
-		    gdc->ispindelCalibrationBaseTemp =
-                (root.containsKey(KeyCorrectionTemp))? root[KeyCorrectionTemp]:20;
-//		}
-		gdc->calculateGravity=root[KeyCalculateGravity];
-		gdc->ispindelCoefficients[0]=root[KeyCoefficientA0];
-		gdc->ispindelCoefficients[1]=root[KeyCoefficientA1];
-		gdc->ispindelCoefficients[2]=root[KeyCoefficientA2];
-		gdc->ispindelCoefficients[3]=root[KeyCoefficientA3];
-        gdc->lpfBeta =root[KeyLPFBeta];
-        gdc->stableThreshold=root[KeyStableGravityThreshold];
-		gdc->numberCalPoints=root[KeyNumberCalPoints];
+		gdc->stableThreshold=root[KeyStableGravityThreshold];
 		gdc->usePlato = root.containsKey(KeyUsePlato)? root[KeyUsePlato]:0;
-		
+		gdc->lpfBeta =root[KeyLPFBeta];
+
+		gdc->calbybpl = root[KeyCalibrateFormula];
+		gdc->offset = root[KeyGravityOffset];
+
+		if(gdc->gravityDeviceType == GravityDeviceIspindel){
+		}
+
+		JsonArray calpts = root[KeyCalibrationPoints].as<JsonArray>();
+		int numpt=0;
+		for(JsonVariant v : calpts) {
+				JsonArray point=v.as<JsonArray>();
+				gdc->calPoints[numpt].raw=  point[0].as<int>();
+				gdc->calPoints[numpt].calsg= point[1].as<int>();
+				numpt++;
+				if(numpt >= MaxNumberCalibrationPoints) break;
+		}
+		gdc->numCalPoints = numpt;
+
 
 		#if SupportTiltHydrometer
-		TiltConfiguration *tcfg = & _data.tiltConfiguration;
-		tcfg->tiltColor = root[KeyTiltColor];
-		
-		JsonArray calpts = root[KeyTiltCalibrationPoints].as<JsonArray>();
-		int i=0;
-		for(JsonVariant v : calpts) {
-			JsonArray point=v.as<JsonArray>();
-			tcfg->calibrationPoints[i].rawsg= point[0].as<int>();
-			tcfg->calibrationPoints[i].calsg= point[1].as<int>();
-			i++;
+		if(gdc->gravityDeviceType == GravityDeviceTilt){
+			TiltConfiguration *tcfg = & _data.bleHydrometerConfiguration.tilt;
+			tcfg->tiltColor = root[KeyTiltColor];
 		}
-		tcfg->numCalPoints = calpts.size();
-		JsonArray tcoe= root[KeyTiltCoefficients].as<JsonArray>();
-		for(i=0;i<4;i++) tcfg->coefficients[i] = tcoe[i];
 		#endif
 
-		// debug
-		#if SerialDebug
-		Serial.print("\nCoefficient:");
-		for(int i=0;i<4;i++){
-		    Serial.print(gdc->ispindelCoefficients[i],10);
-		    Serial.print(", ");
+		#if SupportPillHydrometer
+		if(gdc->gravityDeviceType == GravityDevicePill){
+			PillConfiguration *pcfg = & _data.bleHydrometerConfiguration.pill;
+		
+			JsonArray mac = root[KeyPillMacAddress].as<JsonArray>();
+			int a=0;
+			for(JsonVariant v : mac) {
+				pcfg->macAddress[a]=(uint8_t) v.as<int>();
+				a++;
+			}
 		}
-		Serial.println("");
 		#endif
+
+
 	return true;
 }
 
@@ -419,30 +423,44 @@ String BPLSettings::jsonGravityConfig(void){
         GravityDeviceConfiguration *gdc = &_data.gdc;
 
 		root[KeyGravityDeviceType] = gdc->gravityDeviceType;
-		root[KeyTempCorrection] = gdc->ispindelTempCal;
-
-		root[KeyCorrectionTemp] = gdc->ispindelCalibrationBaseTemp;
-		root[KeyCalculateGravity] = gdc->calculateGravity;
-		root[KeyLPFBeta] =gdc->lpfBeta;
 		root[KeyStableGravityThreshold] = gdc->stableThreshold;
-
-		root[KeyCoefficientA0]=gdc->ispindelCoefficients[0];
-		root[KeyCoefficientA1]=gdc->ispindelCoefficients[1];
-		root[KeyCoefficientA2]=gdc->ispindelCoefficients[2];
-		root[KeyCoefficientA3]=gdc->ispindelCoefficients[3];
-		root[KeyNumberCalPoints] = gdc->numberCalPoints;
 		root[KeyUsePlato] = gdc->usePlato;
+		root[KeyLPFBeta] =gdc->lpfBeta;
+
+		root[KeyCalibrateFormula] = gdc->calbybpl;
+
+		root[KeyCoefficientA0]=gdc->coefficients[0];
+		root[KeyCoefficientA1]=gdc->coefficients[1];
+		root[KeyCoefficientA2]=gdc->coefficients[2];
+		root[KeyCoefficientA3]=gdc->coefficients[3];
+		
+		root[KeyNumberCalPoints] = gdc->numCalPoints;
+		root[KeyGravityOffset] = gdc->offset;		
+
+		if(gdc->numCalPoints > 0){
+			JsonArray points = root.createNestedArray(KeyCalibrationPoints);
+			for(int i=0;i< gdc->numCalPoints;i++){
+				JsonArray point= points.createNestedArray();
+				point.add(gdc->calPoints[i].raw);
+				point.add(gdc->calPoints[i].calsg);
+			}
+		}
+
 
 		#if SupportTiltHydrometer
-		TiltConfiguration *tcfg = & _data.tiltConfiguration;
+		if(gdc->gravityDeviceType == GravityDeviceTilt){
+			TiltConfiguration *tcfg = & _data.bleHydrometerConfiguration.tilt;
 
-		root[KeyTiltColor]	=	tcfg->tiltColor;
-		if(tcfg->numCalPoints > 0){
-			JsonArray points = root.createNestedArray(KeyTiltCalibrationPoints);
-			for(int i=0;i< tcfg->numCalPoints;i++){
-				JsonArray point= points.createNestedArray();
-				point.add(tcfg->calibrationPoints[i].rawsg);
-				point.add(tcfg->calibrationPoints[i].calsg);
+			root[KeyTiltColor]	=	tcfg->tiltColor;
+		}
+		#endif
+		#if SupportPillHydrometer
+		if(gdc->gravityDeviceType == GravityDevicePill){
+			PillConfiguration *pcfg = & _data.bleHydrometerConfiguration.pill;
+
+			JsonArray macs = root.createNestedArray(KeyPillMacAddress);
+			for(int i=0;i< 6;i++){
+				macs.add(pcfg->macAddress[i]);
 			}
 		}
 		#endif
@@ -469,15 +487,6 @@ void BPLSettings::defaultGravityConfig(void)
     gdc->lpfBeta = 0.1;
     gdc->stableThreshold=1;
 	//gdc->numberCalPoints=0;
-	#if SupportTiltHydrometer
-
-	TiltConfiguration *tc = & _data.tiltConfiguration;
-
-	tc->numCalPoints = 0;
-	tc->coefficients[0] = tc->coefficients[2] =  tc->coefficients[3] = 0.0; 
-	tc->coefficients[1] =  1.0;
-
-	#endif
 }
   
 //***************************************************************
@@ -641,29 +650,9 @@ bool BPLSettings::dejsonBeerProfile(String json)
 	}
 	BeerTempSchedule *tempSchedule = & _data.tempSchedule;
 	// get starting time
-	//ISO time:
-	//2016-07-01T05:22:33.351Z
-	//01234567890123456789
-	tm tmStart;
-	char buf[8];
-	const char* sdutc=root["s"];
 
-	#define GetValue(d,s,l) strncpy(buf,sdutc+s,l);buf[l]='\0';d=atoi(buf)
-	GetValue(tmStart.tm_year,0,4);
-	tmStart.tm_year -= 1970; //1900;
-	GetValue(tmStart.tm_mon,5,2);
-//	tmStart.tm_mon -= 1;
-	GetValue(tmStart.tm_mday,8,2);
-	GetValue(tmStart.tm_hour,11,2);
-	GetValue(tmStart.tm_min,14,2);
-	GetValue(tmStart.tm_sec,17,2);
+	tempSchedule->startDay=root["s"];
 
-	DBG_PRINTF("%d/%d/%d %d:%d:%d\n",tmStart.tm_year,tmStart.tm_mon,tmStart.tm_mday,
-		tmStart.tm_hour,tmStart.tm_min,tmStart.tm_sec);
-
-	//_startDay = mktime(&tmStart);
-
-	tempSchedule->startDay= tm_to_timet(&tmStart);
 	#if ARDUINOJSON_VERSION_MAJOR == 6
 	JsonArray schedule = root["t"];
 	#else
@@ -753,16 +742,13 @@ String BPLSettings::jsonBeerProfile(void)
 	//start date
 	//ISO time:
 	//2016-07-01T05:22:33.351Z
-	struct tm * ptm;
-	ptm = localtime(& tempSchedule->startDay);
-	char timeBuf[128];
-	sprintf(timeBuf,"%d-%02d-%02dT%02d:%02d:%02d.0Z",ptm->tm_year+1900,ptm->tm_mon+1,ptm->tm_mday,
-		ptm->tm_hour,ptm->tm_min,ptm->tm_sec);
-	root["s"]=timeBuf;
+
+	root["s"]=tempSchedule->startDay;
 	// unit, unfortunatly, no "char" type in JSON. "char" will be integer.
 	//root["u"]=(char)tempSchedule->unit;
-	char unitBuffer[4];
-	sprintf(unitBuffer,"%c",tempSchedule->unit);
+	char unitBuffer[2];
+	unitBuffer[0]=tempSchedule->unit;
+	unitBuffer[1]='\0';
 	root["u"]=unitBuffer;
 	#if ARDUINOJSON_VERSION_MAJOR == 6
 	JsonArray steps=root.createNestedArray("t");
@@ -774,6 +760,7 @@ String BPLSettings::jsonBeerProfile(void)
 	char pertages[MaximumSteps][16];
 	int  pertageIndex=0;
 
+	if(tempSchedule->numberOfSteps < MaximumSteps)
 	for(int i=0;i< tempSchedule->numberOfSteps;i++){
 		ScheduleStep *s_step= & tempSchedule->steps[i];
 		#if ARDUINOJSON_VERSION_MAJOR == 6

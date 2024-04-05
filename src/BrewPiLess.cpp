@@ -85,7 +85,10 @@ extern "C" {
 #endif
 
 #if SupportTiltHydrometer
-#include "TiltListener.h"
+#include "BleTiltListener.h"
+#endif
+#if SupportPillHydrometer
+#include "BlePillListener.h"
 #endif
 
 
@@ -158,6 +161,9 @@ extern "C" {
 #if SupportTiltHydrometer
 #define TiltCommandPath "/tcmd"
 #endif
+#if SupportPillHydrometer
+#define PillCommandPath "/pill"
+#endif
 
 
 #if AUTO_CAP
@@ -185,6 +191,7 @@ const char *nocache_list[]={
 "/brewpi.cfg"
 };
 
+String ApplicationJsonType="Application/JSON";
 
 //*******************************************
 
@@ -220,7 +227,8 @@ DataLogger dataLogger;
 extern const uint8_t* getEmbeddedFile(const char* filename,bool &gzip, unsigned int &size);
 
 void requestRestart(bool disc);
-void tiltScanResult(String& result);
+void bleDeviceScanResult(String& result);
+
 
 void initTime(bool apmode)
 {
@@ -232,7 +240,7 @@ void initTime(bool apmode)
 		TimeKeeper.begin((char*)"time.google.com",(char*)"pool.ntp.org",(char*)"time.windows.com");
 	}
 */
-	TimeKeeper.begin((char*)"time.google.com",(char*)"pool.ntp.org",(char*)"time.windows.com");
+	TimeKeeper.begin((char*)"pool.ntp.org",(char*)"time.google.com",(char*)"time.windows.com");
 
 }
 #if AUTO_CAP
@@ -266,7 +274,7 @@ class BrewPiWebHandler: public AsyncWebHandler
           		}
 			  }
           	output += "]";
-          	request->send(200, "text/json", output);
+          	request->send(200,ApplicationJsonType, output);
           	output = String();
 
 
@@ -290,12 +298,12 @@ class BrewPiWebHandler: public AsyncWebHandler
             		entry.close();
           	}
           	output += "]";
-          	request->send(200, "text/json", output);
+          	request->send(200, ApplicationJsonType, output);
           	output = String();
 			#endif
-        }
-        else
+        }else{
           request->send(400);
+		}
 	}
 
 	void handleFileDelete(AsyncWebServerRequest *request){
@@ -308,8 +316,9 @@ class BrewPiWebHandler: public AsyncWebHandler
 			ESP.wdtEnable(10);
 			#endif
             request->send(200, "", "DELETE: "+request->getParam("path", true)->value());
-        } else
-          request->send(404);
+        } else{
+          	request->send(400);
+		}
     }
 	#if UseLittleFS
 	void createDirectoryIfNeeded(String path){
@@ -352,10 +361,11 @@ class BrewPiWebHandler: public AsyncWebHandler
 			#if !defined(ESP32)
         	ESP.wdtEnable(10);
 			#endif
-            request->send(200,"application/json","{}");
+            request->send(200,ApplicationJsonType,"{}");
             DBG_PRINTF("fputs path=%s\n",file.c_str());
-        } else
-          request->send(404);
+        } else{
+          	request->send(400);
+		}
     }
 
     bool fileExists(String path)
@@ -486,7 +496,7 @@ public:
 
 		#if SupportMqttRemoteControl
 		if(request->method() == HTTP_GET && request->url() == MQTT_PATH){
-			request->send(200,"application/json",theSettings.jsonMqttRemoteControlSettings());
+			request->send(200,ApplicationJsonType,theSettings.jsonMqttRemoteControlSettings());
 	 	}else if(request->method() == HTTP_POST && request->url() == MQTT_PATH){
 	 	    if(!request->authenticate(syscfg->username, syscfg->password))
 	        return request->requestAuthentication();
@@ -494,10 +504,10 @@ public:
 			if(request->hasParam("data", true)){
 				if(theSettings.dejsonMqttRemoteControlSettings(request->getParam("data", true)->value())){
 					theSettings.save();
-					request->send(200,"application/json","{}");
+					request->send(200,ApplicationJsonType,"{}");
 					mqttRemoteControl.reset();
 				}else{
-  					request->send(500);
+  					request->send(406);
 					DBG_PRINTF("json format error\n");
   					return;
 				}
@@ -511,7 +521,7 @@ public:
 		if(request->method() == HTTP_GET && request->url() == CONFIG_PATH){
 			if(!request->authenticate(syscfg->username, syscfg->password)) return request->requestAuthentication();
 			if(request->hasParam("cfg"))
-				request->send(200,"application/json",theSettings.jsonSystemConfiguration());
+				request->send(200,ApplicationJsonType,theSettings.jsonSystemConfiguration());
 			else 
 				request->redirect(request->url() + ".htm");
 	 	}else if(request->method() == HTTP_POST && request->url() == CONFIG_PATH){
@@ -524,7 +534,7 @@ public:
 				if(theSettings.dejsonSystemConfiguration(request->getParam("data", true)->value())){
 					theSettings.save();
 					DBG_PRINTF("config saved: %s\n",theSettings.systemConfiguration()->hostnetworkname);
-					request->send(200,"application/json","{}");
+					request->send(200,ApplicationJsonType,"{}");
 					display.setAutoOffPeriod(theSettings.systemConfiguration()->backlite);
 
 					#if TWOFACED_LCD
@@ -540,7 +550,7 @@ public:
 						requestRestart(false);
 					}
 				}else{
-  					request->send(500);
+  					request->send(406);
 					DBG_PRINTF("json format error\n");
   					return;
   				}			
@@ -549,7 +559,7 @@ public:
 				DBG_PRINTF("no data in post\n");
   			}
 	 	}else if(request->method() == HTTP_GET &&  request->url() == TIME_PATH){
-			AsyncResponseStream *response = request->beginResponseStream("application/json");
+			AsyncResponseStream *response = request->beginResponseStream(ApplicationJsonType);
 			response->printf("{\"t\":\"%s\",\"e\":%lu,\"o\":%d}",TimeKeeper.getDateTimeStr(),(unsigned long)TimeKeeper.getTimeSeconds(),TimeKeeper.getTimezoneOffset());
 			request->send(response);
 		}else if(request->method() == HTTP_POST &&  request->url() == TIME_PATH){
@@ -564,7 +574,7 @@ public:
 				DBG_PRINTF("Set timezone:%ld\n",tvalue->value().toInt());
 			   TimeKeeper.setTimezoneOffset(tvalue->value().toInt());
 		    }		   
-			request->send(200,"application/json","{}");
+			request->send(200,ApplicationJsonType,"{}");
 			 
 		}else if(request->method() == HTTP_GET &&  request->url() == RESETWIFI_PATH){
 	 	    if(!request->authenticate(syscfg->username, syscfg->password))
@@ -600,7 +610,16 @@ public:
 		}else if(request->method() == HTTP_GET && request->url() == GETSTATUS_PATH){
 			uint8_t mode, state;
 			float beerSet, beerTemp, fridgeTemp, fridgeSet, roomTemp;
-			brewPi.getAllStatus(&state, &mode, &beerTemp, &beerSet, &fridgeTemp, &fridgeSet, &roomTemp);
+
+	        state = brewPi.getState();
+        	mode = brewPi.getMode();
+    	    beerTemp = brewPi.getBeerTemp();
+        	beerSet = brewPi.getBeerSet();
+        	fridgeTemp = brewPi.getFridgeTemp();
+        	fridgeSet = brewPi.getFridgeSet();
+        	roomTemp = brewPi.getRoomTemp();
+
+			mode = brewPi.getMode();
 			#define TEMPorNull(a) (IS_FLOAT_TEMP_VALID(a)?  String(a):String("null"))
 			String json=String("{\"mode\":\"") + String((char) mode)
 			+ String("\",\"state\":") + String(state)
@@ -610,7 +629,7 @@ public:
 			+ String(",\"fridgeTemp\":") + TEMPorNull(fridgeTemp)
 			+ String(",\"roomTemp\":") + TEMPorNull(roomTemp)
 			+String("}");
-			request->send(200,"application/json",json);
+			request->send(200,ApplicationJsonType,json);
 		}
 	 	#ifdef ENABLE_LOGGING
 	 	else if (request->url() == LOGGING_PATH){
@@ -618,17 +637,17 @@ public:
 				if(!request->authenticate(syscfg->username, syscfg->password)) return request->requestAuthentication();
 				if(request->hasParam("data", true)){
 		    		if(theSettings.dejsonRemoteLogging(request->getParam("data", true)->value())){
-		    			request->send(200,"application/json","{}");
+		    			request->send(200,ApplicationJsonType,"{}");
 						theSettings.save();
 					}else{
-						request->send(401);
+						request->send(406);
 					}
         		} else{
-        		  request->send(404);
+        		  request->send(400);
     			}
 	 		}else{
 				if(request->hasParam("data")){
-					request->send(200,"application/json",theSettings.jsonRemoteLogging());
+					request->send(200,ApplicationJsonType,theSettings.jsonRemoteLogging());
 				}else{
 					request->redirect(request->url() + ".htm");
 				} 
@@ -640,15 +659,17 @@ public:
 			if(request->method() == HTTP_POST){
 				if(request->hasParam("c", true)){
 		    		String content=request->getParam("c", true)->value();
-					if(parasiteTempController.updateSettings(content))
-			            request->send(200,"application/json","{}");
-					else 
-						request->send(400);	
-        		} else
-          			request->send(404);
+					if(parasiteTempController.updateSettings(content)){
+			            request->send(200,ApplicationJsonType,"{}");
+					}else{ 
+						request->send(406);	
+					}
+        		} else{
+          			request->send(400);
+				}
 	 		}else{
 				String status=parasiteTempController.getSettings();
-				request->send(200,"application/json",status);
+				request->send(200,ApplicationJsonType,status);
 	 		}
 		}
 		#endif
@@ -681,7 +702,7 @@ public:
 				request->send(400);
 				response=false;
 			}
-			if(response) request->send(200,"application/json","{}");
+			if(response) request->send(200,ApplicationJsonType,"{}");
 			capStatusReport();
 		}
 		#endif
@@ -693,9 +714,9 @@ public:
 			if(request->method() == HTTP_GET){
 				if(request->hasParam("r")){
 					int reading=PressureMonitor.currentAdcReading();
-					request->send(200,"application/json",String("{\"a0\":")+String(reading)+String("}"));
+					request->send(200,ApplicationJsonType,String("{\"a0\":")+String(reading)+String("}"));
 				}else{
-					request->send(200,"application/json",theSettings.jsonPressureMonitorSettings());
+					request->send(200,ApplicationJsonType,theSettings.jsonPressureMonitorSettings());
 				}
 			}else{
 				// post
@@ -705,14 +726,14 @@ public:
 					if(theSettings.dejsonPressureMonitorSettings(request->getParam("data",true)->value())){
 						theSettings.save();
 						PressureMonitor.configChanged();
-						request->send(200,"application/json","{}");
+						request->send(200,ApplicationJsonType,"{}");
 					}else{
 						DBG_PRINTF("invalid Json\n");
-						request->send(402);
+						request->send(406);
 					}
 				}else{
 					DBG_PRINTF("no data\n");
-					request->send(401);
+					request->send(400);
 				}
 			}
 		}
@@ -725,16 +746,16 @@ public:
 				humidityControl.setMode(mode);
 				humidityControl.setTarget(target);
 				theSettings.save();
-				request->send(200,"application/json","{}");
+				request->send(200,ApplicationJsonType,"{}");
 			}else{
-				request->send(404);
+				request->send(400);
 				DBG_PRINTF("missing parameter:m =%d, t=%d\n",request->hasParam("m",true), request->hasParam("t",true) );
 			}
 		}
 		#endif
 		else if(request->url() == BEER_PROFILE_PATH){
 			if(request->method() == HTTP_GET){
-				request->send(200,"application/json",theSettings.jsonBeerProfile());
+				request->send(200,ApplicationJsonType,theSettings.jsonBeerProfile());
 			}else{ //if(request->method() == HTTP_POST){
 
 				if(!request->authenticate(syscfg->username, syscfg->password)) return request->requestAuthentication();
@@ -743,11 +764,12 @@ public:
 					if(theSettings.dejsonBeerProfile(request->getParam("data",true)->value())){
 						theSettings.save();
 						brewKeeper.profileUpdated();
-						request->send(200,"application/json","{}");
-					}else
-						request->send(402);
+						request->send(200,ApplicationJsonType,"{}");
+					}else{
+						request->send(406);
+					}
 				}else{
-					request->send(401);
+					request->send(400);
 				}
 			}
 		}else if(request->method() == HTTP_GET){
@@ -916,7 +938,7 @@ void greeting(std::function<void(const char*)> sendFunc)
 	char buf[512];
 	// gravity related info., starting from "G"
 	if(externalData.gravityDeviceEnabled()){
-		externalData.sseNotify(buf);
+		externalData.gravityDeviceSetting(buf);
 		sendFunc(buf);
 	} 
 
@@ -958,8 +980,8 @@ void greeting(std::function<void(const char*)> sendFunc)
 	sendFunc(out.c_str());
 
 	// beer profile:
-	String profile=String("B:") + theSettings.jsonBeerProfile();
-	sendFunc(profile.c_str());
+//	String profile=String("B:") + theSettings.jsonBeerProfile();
+//	sendFunc(profile.c_str());
 	//network status:
 
 	String nwstatus=String("W:") + WiFiSetup.status();
@@ -1074,25 +1096,29 @@ void stringAvailable(const char *str)
 
 void notifyLogStatus(void)
 {
-	externalData.waitFormula();
+	//externalData.waitFormula();
 	const char *logname= brewLogger.currentLog();
 	String logstr=(logname)? String(logname):String("");
 	String status=String("A:{\"reload\":\"chart\", \"log\":\"") +  logstr + String("\"}");
 	stringAvailable(status.c_str());
 }
 
-void reportRssi(void)
+void periodicalReport(void)
 {
 //	char buf[512];
 
 	uint8_t mode, state;
 	char unit;
 	float beerSet, beerTemp, fridgeTemp, fridgeSet, roomTemp;
-	float min,max;
-	char statusLine[21];
-	brewPi.getTemperatureSetting(&unit,&min,&max);
-	brewPi.getAllStatus(&state, &mode, &beerTemp, &beerSet, &fridgeTemp, &fridgeSet, &roomTemp);
-	display.getLine(3,statusLine);
+	
+	mode = brewPi.getMode();
+	state = brewPi.getState();
+	unit = brewPi.getUnit();
+	beerSet = brewPi.getBeerSet();
+	beerTemp = brewPi.getBeerTemp();
+	fridgeTemp=brewPi.getFridgeTemp();
+	fridgeSet = brewPi.getFridgeSet();
+	roomTemp = brewPi.getRoomTemp();
 
 	DynamicJsonDocument doc(1024);
 	doc["rssi"]= WiFi.RSSI();
@@ -1103,7 +1129,7 @@ void reportRssi(void)
 	doc["ft"] = (int)(fridgeTemp*100);
 	doc["fs"] = (int)(fridgeSet*100);
 	doc["rt"] = (int)(roomTemp*100);
-	doc["sl"] = statusLine;
+	doc["sl"] = brewPi.getStatusTime();
 	doc["tu"] = String(unit);
 
 
@@ -1132,11 +1158,18 @@ void reportRssi(void)
 
 
 	JsonObject G = doc.createNestedObject("G");
+	// last update
 	G["u"] = externalData.lastUpdate();
+	// gravity
+	G["g"] = (int)((externalData.gravity() +0.0005) * 1000);
+	// temperature
 	G["t"] = (int)(externalData.auxTemp() * 100);
+	// RSSI, for all devices
 	G["r"] = externalData.rssi();
-	G["g"] = (int)(externalData.gravity() * 1000);
-
+	// angle, only for iSpindel & Pill
+	G["a"] = externalData.tiltValue();
+	// battery, for iSPindel & Pill
+	G["b"] = externalData.deviceVoltage();
 
 	String out="A:";
 	serializeJson(doc,out);
@@ -1169,7 +1202,7 @@ public:
 				brewLogger.addIgnoredCalPointMask(mask);
 				request->send(200,"application/json","{}");
 			}else{
-				request->send(404);
+				request->send(400);
 			}
 		}else */
 		if( request->url() == LOGLIST_PATH){
@@ -1187,16 +1220,12 @@ public:
 				DBG_PRINTF("Delete log file %d\n",index);
 				brewLogger.rmLog(index);
 
-				request->send(200,"application/json",brewLogger.fsinfo());
+				request->send(200,ApplicationJsonType,brewLogger.fsinfo());
 			}else if(request->hasParam("start")){
 				String filename=request->getParam("start")->value();
-				DBG_PRINTF("start logging:%s\n",filename.c_str());
 				bool cal=false;
-				float tiltwater, hydroreading;
-				if(request->hasParam("tw") && request->hasParam("hr")){
+				if(request->hasParam("raw")){
 					cal=true;
-					tiltwater=request->getParam("tw")->value().toFloat();
-					hydroreading=request->getParam("hr")->value().toFloat();
 				}
 				bool wobf=false;
 				
@@ -1204,29 +1233,23 @@ public:
 					wobf = ( 0!= request->getParam("wobf")->value().toInt());
 				}
 
+				DBG_PRINTF("start logging:%s, cal:%d, wobf:%d\n",filename.c_str(),cal,wobf);
+
 				if(brewLogger.startSession(filename.c_str(),cal,wobf)){
-					if(cal){
-						brewLogger.addTiltInWater(tiltwater,hydroreading);
-						externalData.setCalibrating(true);
-						DBG_PRINTF("Start BrweNCal log\n");
-					}
-
-					brewLogger.addCorrectionTemperature(externalData.hydrometerCalibration());
-
-					request->send(200,"application/json","{}");
+					request->send(200,ApplicationJsonType,"{}");
 					notifyLogStatus();
-				}else
-					request->send(404);
+				}else{
+					request->send(500,ApplicationJsonType,String("{\"error\":")+ String(brewLogger.getErrorCode())+ String("}"));
+				}
 			}else if(request->hasParam("stop")){
 				DBG_PRINTF("Stop logging\n");
 				brewLogger.endSession();
-				externalData.setCalibrating(false);
-				request->send(200,"application/json","{}");
+				request->send(200,ApplicationJsonType,"{}");
 				notifyLogStatus();
 			}else{
 				// default. list information
 				String status=brewLogger.loggingStatus();
-				request->send(200,"application/json",status);
+				request->send(200,ApplicationJsonType,status);
 			}
 			return;
 		} // end of logist path
@@ -1306,14 +1329,14 @@ private:
 	bool   _error;
 
 	void processGravity(AsyncWebServerRequest *request,char data[],size_t length){
-		if(length ==0) return request->send(500);;
+		if(length ==0) return request->send(400);;
 		SystemConfiguration *syscfg=theSettings.systemConfiguration();
         uint8_t error;
 		if(externalData.processGravityReport(data,length,request->authenticate(syscfg->username,syscfg->password),error)){
-    		request->send(200,"application/json","{}");
+    		request->send(200,ApplicationJsonType,"{}");
 		}else{
 		    if(error == ErrorAuthenticateNeeded) return request->requestAuthentication();
-		    else request->send(500);
+		    else request->send(400);
 		}
 	}
 
@@ -1337,6 +1360,9 @@ public:
 #if	SupportTiltHydrometer
 	 	if(request->url() == TiltCommandPath) return true;
 #endif
+#if	SupportPillHydrometer
+	 	if(request->url() == PillCommandPath) return true;
+#endif
 
 	 	return false;
 	}
@@ -1345,24 +1371,60 @@ public:
 #if	SupportTiltHydrometer
 	 	if(request->url() == TiltCommandPath){
 			 if(request->hasParam("scan")){
-				 DBG_PRINTF("scan BLE\n");
-				 tiltListener.scan([](int count,TiltHydrometerInfo *tilts){
-					String ret="{\"tilts\":[";
-						 for(int i=0;i<count;i++){
-							 ret += String("{\"c\":")+ String(tilts[i].color) +
-							 		String(",\"r\":")+ String(tilts[i].rssi) +
-									String(",\"g\":")+ String(tilts[i].gravity) +
-									String(",\"t\":")+ String(tilts[i].temperature) +
-									((i==count-1)? String("}"): String("},"));
-						 }
-					ret += "]}";
-					tiltScanResult(ret);
-				 });
-				 request->send(200);
+				if(request->getParam("scan")->value().toInt() ==1){
+					 DBG_PRINTF("scan for Tilts...\n");
+					 tiltScanner.scan([](TiltHydrometerInfo *tilt){
+						String ret="{\"tilt\":{\"c\":";
+								 ret += String(tilt->color) +
+								 		String(",\"r\":")+ String(tilt->rssi) +
+										String(",\"g\":")+ String(tilt->gravity) +
+										String(",\"t\":")+ String(tilt->temperature) +
+										String("}}");
+						bleDeviceScanResult(ret);
+					 });
+					 request->send(200,ApplicationJsonType,"{}");
+				}else{
+					tiltScanner.stopScan();
+					request->send(200,ApplicationJsonType,"{}");
+				}
+			 }else{
+				request->send(400);
 			 }
 			 return;
 		 }
 #endif
+#if	SupportPillHydrometer
+	 	if(request->url() == PillCommandPath){
+			 if(request->hasParam("scan")){
+				DBG_PRINTF(" pill scan:%d\n",request->getParam("scan")->value().toInt());
+				if(request->getParam("scan")->value().toInt() ==1){
+					DBG_PRINTF("scan for Pills...\n");
+					pillScanner.scan([](PillHydrometerInfo* pill){
+						String ret=String("{\"pill\":{\"a\":[");
+								const uint8_t *address = pill->macAddress.getNative();
+								for(int a=0;a<6;a++){
+										ret += address[a];
+										if(a<5) ret+=String(",");
+								}
+								ret+= String("],\"r\":")+ String(pill->rssi) +
+										String(",\"g\":")+ String(pill->gravity) +
+										String(",\"t\":")+ String(pill->temperature) +
+										String("}}");
+						bleDeviceScanResult(ret);
+					});
+					request->send(200,ApplicationJsonType,"{}");
+				}else{
+					// stop
+					pillScanner.stopScan();
+					request->send(200,ApplicationJsonType,"{}");
+				}
+			 }else{
+				request->send(400);
+			 }
+			 return;
+		 }
+#endif
+
 
 		if(request->url() == GRAVITY_PATH){
 			if(request->method() != HTTP_POST){
@@ -1372,7 +1434,7 @@ public:
 			stringAvailable(_buffer); // send to brower to log on Javascript Console
 			processGravity(request,_data,_dataLength);
 			// Process the name
-			externalData.sseNotify(_data);
+			externalData.gravityDeviceSetting(_data);
 			stringAvailable(_data);
 			return;
 		}
@@ -1386,11 +1448,11 @@ public:
 				coeff[2]=request->getParam("a2")->value().toFloat();
 				coeff[3]=request->getParam("a3")->value().toFloat();
 				uint32_t npt=(uint32_t) request->getParam("pt")->value().toInt();
-				externalData.formula(coeff,npt);
+				//externalData.setFormula(coeff,npt);
 
 				brewLogger.addIgnoredCalPointMask(npt & 0xFFFFFF);
   				
-				request->send(200,"application/json","{}");
+				request->send(200,ApplicationJsonType,"{}");
 			}else{
 				DBG_PRINTF("Invalid parameter\n");
   				request->send(400);
@@ -1401,7 +1463,7 @@ public:
 		// config
 		if(request->method() == HTTP_POST){
   			if(externalData.processconfig(_data)){
-		  		request->send(200,"application/json","{}");
+		  		request->send(200,ApplicationJsonType,"{}");
 			}else{
 				request->send(400);
 			}
@@ -1409,7 +1471,7 @@ public:
 		}//else{
 			// get
 		if(request->hasParam("data")){
-			request->send(200,"application/json",theSettings.jsonGravityConfig());
+			request->send(200,ApplicationJsonType,theSettings.jsonGravityConfig());
 		}else{
 			// get the HTML
 			request->redirect(request->url() + ".htm");
@@ -1476,17 +1538,18 @@ public:
 	}
 
 	void handleNetworkScan(AsyncWebServerRequest *request){
-		if(WiFiSetup.requestScanWifi())
-			request->send(200,"application/json","{}");
-		else 
-			request->send(403);
+		if(WiFiSetup.requestScanWifi()){
+			request->send(200,ApplicationJsonType,"{}");
+		}else{ 
+			request->send(500);
+		}
 	}
 
 	void handleNetworkDisconnect(AsyncWebServerRequest *request){
 		theSettings.systemConfiguration()->wifiMode=WIFI_AP;
 		WiFiSetup.setMode(WIFI_AP);
 
-		request->send(200,"application/json","{}");
+		request->send(200,ApplicationJsonType,"{}");
 	}
 
 	
@@ -1549,7 +1612,7 @@ public:
 		//MDNS.notifyAPChange();		
 		theSettings.save();
 
-		request->send(200,"application/json","{}");
+		request->send(200,ApplicationJsonType,"{}");
 	}
 
 	bool canHandle(AsyncWebServerRequest *request){
@@ -1590,10 +1653,11 @@ void wiFiEvent(const char* msg){
 	#endif
 }
 
-void tiltScanResult(String& result){
+void bleDeviceScanResult(String& result){
 	String report="T:" + result;
 	stringAvailable(report.c_str());
 }
+
 //{brewpi
 
 
@@ -1650,7 +1714,7 @@ void brewpi_setup()
 #endif
 
 	piLink.init();
-
+	deviceManager.setFridgeSensorFallBack(theSettings.systemConfiguration()->glycolChilling !=0);
 	logDebug("started");
 	tempControl.init();
 	settingsManager.loadSettings();
@@ -1987,7 +2051,6 @@ void setup(void){
 	//make sure externalData  is initialized.
 	if(brewLogger.begin()){
 		// resume, update calibrating information to external data
-		externalData.setCalibrating(brewLogger.isCalibrating());
 		DBG_PRINTF("Start BrweNCal log:%d\n",brewLogger.isCalibrating());
 	}
 	
@@ -1998,8 +2061,8 @@ void setup(void){
 	autoCapControl.begin();
 	#endif
 
-#if SupportTiltHydrometer
-	tiltListener.begin();
+#if SupportBleHydrometer
+	bleListener.begin();
 #endif
 
 #if EanbleParasiteTempControl
@@ -2034,9 +2097,8 @@ void setup(void){
 	#endif
 }
 
-uint32_t _rssiReportTime;
-#define RssiReportPeriod 5
-
+uint32_t _periodicReportTime;
+#define PeriodicalReportTime 5
 void loop(void){
 //{brewpi
 #if BREWPI_SIMULATE
@@ -2056,7 +2118,6 @@ void loop(void){
 	ESPUpdateServer_loop();
 #endif
 	time_t now=TimeKeeper.getTimeSeconds();
-
 #ifdef EMIWorkaround
 	if( (millis() - _lcdReinitTime) > LCDReInitPeriod){
 		_lcdReinitTime=millis();
@@ -2070,9 +2131,10 @@ void loop(void){
 	sharedDisplayManager.loop();
 #endif
 
-	if( (now - _rssiReportTime) > RssiReportPeriod){
-		_rssiReportTime =now;
-		reportRssi();
+	if( (now - _periodicReportTime) > PeriodicalReportTime){
+		_periodicReportTime =now;
+		periodicalReport();
+//		DBG_PRINTF("Periodical report:%d\n",_periodicReportTime);
 	}
 
   	brewKeeper.keep(now);
@@ -2100,8 +2162,8 @@ void loop(void){
 	PressureMonitor.loop();
 	#endif
 	
-	#if SupportTiltHydrometer
-	tiltListener.loop();
+	#if SupportBleHydrometer
+	bleListener.loop();
 	#endif
 
 	#if EnableHumidityControlSupport

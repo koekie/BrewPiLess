@@ -101,6 +101,18 @@ uint16_t MqttRemoteControl::_publish(const char* key,char value){
     }
     return packetid;
 }
+uint16_t MqttRemoteControl::_publish(const char* key,const char* value){
+    DBG_PRINTF("Publish %s\n",key);
+
+    // somwhow need to be optimized
+    char topic[256];
+    int baselength=strlen(_reportBasePath);
+    strncpy(topic,_reportBasePath,baselength);
+    topic[baselength]='/';
+    strcpy(topic + baselength +1, key);
+
+    return _client.publish(topic,DefaultLogginQoS,true,value);
+}
 
 void MqttRemoteControl::_reportData(void){
     _lastReportTime = millis();
@@ -120,8 +132,13 @@ void MqttRemoteControl::_reportData(void){
         uint8_t state, mode;
 	    float beerSet,fridgeSet;
 	    float beerTemp,fridgeTemp,roomTemp;
-
-	    brewPi.getAllStatus(&state,&mode,& beerTemp,& beerSet,& fridgeTemp,& fridgeSet,& roomTemp);
+        state = brewPi.getState();
+        mode = brewPi.getMode();
+        beerTemp = brewPi.getBeerTemp();
+        beerSet = brewPi.getBeerSet();
+        fridgeTemp = brewPi.getFridgeTemp();
+        fridgeSet = brewPi.getFridgeSet();
+        roomTemp = brewPi.getRoomTemp();
         
         lastID=_publish(KeyState, (char)('0'+state));
 
@@ -143,21 +160,29 @@ void MqttRemoteControl::_reportData(void){
 
     	#if EnableHumidityControlSupport
 	    if(humidityControl.isHumidityValid())  lastID=_publish(KeyFridgeHumidity,humidityControl.humidity());
-	    if(humidityControl.isRoomSensorInstalled())  lastID=_publish(KeyFridgeHumidity,humidityControl.roomHumidity());
+	    if(humidityControl.isRoomSensorInstalled()){
+            uint8_t rh=humidityControl.roomHumidity();
+            if(rh <= 100) lastID=_publish(KeyRoomHumidity,,rh);
+        }
 	    #endif
 
 
     	// iSpindel data
 	    float vol=externalData.deviceVoltage();
-	    if(IsVoltageValid(vol)){
-		    lastID=_publish(KeyVoltage, vol,2);
-		    float at=externalData.auxTemp();
-		    if(IS_FLOAT_TEMP_VALID(at)) lastID=_publish(KeyAuxTemp, at,1);
-		    float tilt=externalData.tiltValue();
-		    lastID=_publish(KeyTilt,tilt,2);
-            int16_t rssi=externalData.rssi();
-    		lastID=_publish(KeyIspindelRssi,(float)rssi,0);
-	    }
+	    if(IsVoltageValid(vol)) lastID=_publish(KeyVoltage, vol,2);
+		
+        float at=externalData.auxTemp();
+		if(IS_FLOAT_TEMP_VALID(at)) lastID=_publish(KeyAuxTemp, at,1);
+		    
+        float tilt=externalData.tiltValue();
+		if(tilt>0) lastID=_publish(KeyTilt,tilt,2);
+            
+        int16_t rssi=externalData.rssi();
+    	if(IsRssiValid(rssi)) lastID=_publish(KeyWirelessHydrometerRssi,(float)rssi,0);
+
+    	const char *hname=externalData.getDeviceName();
+	    if(hname) lastID=_publish(KeyWirelessHydrometerName, hname);
+
     }
     _lastPacketId = lastID;
     _publishing=true;

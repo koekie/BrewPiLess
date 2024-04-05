@@ -11,7 +11,7 @@
 #include "BPLSettings.h"
 #include "TimeKeeper.h"
 
-#define LOG_VERSION 0x6
+#define LOG_VERSION 0x7
 
 #define INVALID_RECOVERY_TIME 0xFF
 #define INVALID_TEMPERATURE -250
@@ -26,7 +26,7 @@
 #define PeriodTag 0xF0
 #define StateTag 0xF1
 #define EventTag 0xF2
-#define CorrectionTempTag 0xF3
+#define CalibrationDataTag 0xF3
 #define ModeTag 0xF4
 
 #define TargetPsiTag 0xF5
@@ -34,7 +34,7 @@
 
 #define FillTag 0xF7
 #define OriginGravityTag 0xF8
-#define CalibrationPointTag 0xF9
+#define DeviceTypeTag 0xF9
 #define IgnoredCalPointMaskTag 0xFA
 
 #define SpecificGravityTag 0xFB
@@ -45,15 +45,21 @@
 #define ResumeBrewTag 0xFE
 #define StartLogTag 0xFF
 
+#define MaskPlato 0x40
+#define MaskCalibration 0x20
+#define MaskTemperatureUnit 0x10
 
 #define INVALID_TEMP_INT 0x7FFF
 #define INVALID_GRAVITY_INT 0x7FFF
 
+#define GDIAddress 1
+#define GDIIdentity 2
+
 #define VolatileDataHeaderSize 7
 #if EnableHumidityControlSupport
-#define VolatileHeaderSize ( VolatileDataHeaderSize*2 + 18)
+#define VolatileHeaderSize ( VolatileDataHeaderSize*2 + 20)
 #else
-#define VolatileHeaderSize ( VolatileDataHeaderSize*2 + 16)
+#define VolatileHeaderSize ( VolatileDataHeaderSize*2 + 18)
 #endif
 
 #define OrderBeerSet 0
@@ -73,12 +79,13 @@
 #define NumberDataBitMask 8
 
 #define TiltEncode(g) (uint16_t)(100.0 * (g) + 0.5)
+#define TiltDecode(d) (float)((d)/100.0)
 #define INVALID_TILT_ANGLE 0x7FFF
 
 #define GravityEncode(g) (uint16_t)(10000.0 * (g) + 0.5)
-#define GravityDecode(a) (float)(a)/10000.0
+#define GravityDecode(a) ((float) ((a) & 0x7FFF)/10000.0)
 #define PlatoEncode(g) (uint16_t)(100.0 * (g) + 0.5)
-#define PlatoDecode(a) (float)(a)/100.0
+#define PlatoDecode(a) ((float)((a) & 0x7FFF)/100.0)
 
 #define HighOctect(a) (uint8_t)((a)>>8) 
 #define LowOctect(a) (uint8_t)((a)&0xFF)
@@ -123,18 +130,21 @@ public:
 	void addGravity(float gravity,bool isOg=false);
 	void addAuxTemp(float temp);
 	void addTiltAngle(float tilt);
-	void addCorrectionTemperature(float temp);
-	void addTiltInWater(float tilt,float reading);
 	bool isCalibrating(void){ return _calibrating;}
 	void addIgnoredCalPointMask(uint32_t mask);
 	//format file system
 	void onFormatFS(void);
+	uint32_t lastGravityDeviceUpdate(void){return _lastGravityDeviceUpdate;}
+
+	void addCalibrateData(void){ _newcalibratingdata =true; }
+	int getErrorCode(void){ return _errorCode; }
 private:
 	size_t _fsspace;
 	uint32_t  _chartTime;
 	uint32_t _lastTempLog;
     uint32_t _resumeLastLogTime;
 	uint32_t _trackedTime;
+	uint32_t _lastGravityDeviceUpdate;
 
 	bool _recording;
 	bool _calibrating;
@@ -154,7 +164,7 @@ private:
 	uint16_t  _extTemp;
 	uint16_t  _extGravity;
 	uint16_t  _extOriginGravity;
-	uint16_t  _extTileAngle;
+	uint16_t  _extTiltAngle;
 
 	int16_t  _lastPressureReading;
 
@@ -176,9 +186,10 @@ private:
 	uint8_t _lastHumidityTarget;
 	uint8_t _savedHumidityTarget;
 #endif
-
+	bool _newcalibratingdata;
 	uint16_t  _headData[VolatileDataHeaderSize];
 	bool _writeOnBufferFull;
+	int _errorCode;
 
 	void _resetTempData(void);
 	void _checkspace(void);
@@ -212,6 +223,7 @@ private:
 
 	void _loadIdxFile(void);
 	void _saveIdxFile(void);
+	void _addCalibrationRecords(void);
 };
 
 extern BrewLogger brewLogger;

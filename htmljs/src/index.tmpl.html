@@ -74,11 +74,13 @@
 
             </ul>
             <ul class="data-pane gravity-device-pane">
-                <li class="heading"><strong><span class="ispindel-info"> <%= ispindel_data %></span><span class="tilt-info">Tilt</span> </strong></li>
-                <li class="ispindel-info" layout horizontal main-justified><span class="descriptor"><%= ispindel_tilt %></span> <span id="iSpindel-tilt">--</span></li>
-                <li class="ispindel-info" layout horizontal main-justified><span class="descriptor"><%= ispindel_battery %></span> <span id="iSpindel-battery">--</span></li>
-
-                <li layout horizontal main-justified><span class="descriptor">Temperature</span> <span id="gravity-device-temp">--</span></li>
+                <li class="heading"><strong><span class="gd-option ispindel-info"> <%= ispindel_data %></span>
+                                            <span class="gd-option tilt-info">Tilt&trade; Hydrometer</span> 
+                                            <span class="gd-option pill-info">RAPT Pill Hydrometer</span></strong></li>
+                <li class="gd-option ispindel-info pill-info" layout horizontal main-justified><span class="descriptor"><%= ispindel_tilt %></span> <span id="gdevice-angle">--</span></li>
+                <li class="gd-option ispindel-info pill-info" layout horizontal main-justified><span class="descriptor"><%= ispindel_battery %></span> <span id="gdevice-battery">--</span></li>
+                <li class="gd-option tilt-info" layout horizontal main-justified><span class="descriptor"><%= tilt_raw_sg %></span> <span id="tilt-raw">--</span></li>
+                <li layout horizontal main-justified><span class="descriptor"><%= gravity_temperature %></span> <span id="gravity-device-temp">--</span></li>
 
                 <li layout horizontal main-justified id=ispindel-rssi-line>
                     <span class="descriptor">RSSI</span> <div id="gravity-device-rssi" class="wifi-bars">
@@ -208,8 +210,8 @@
                     </li>
 
                     <li layout horizontal main-justified class="chart-legend-row humidity humidity-group forced-hidden">
-                        <input type="checkbox" id="humidity" name="set-name" class="switch-input" checked>
-                        <label onclick="BChart.toggle(ChamberHumidityLine)" for="humidity" class="switch-label"> <%= label_humidity %> </label>
+                        <input type="checkbox" id="l-humidity" name="set-name" class="switch-input" checked>
+                        <label onclick="BChart.toggle(ChamberHumidityLine)" for="l-humidity" class="switch-label"> <%= label_humidity %> </label>
                         <div class="legend-value">--</div>
                     </li>
                     <li layout horizontal main-justified class="chart-legend-row set-humidity humidity-group forced-hidden">
@@ -218,8 +220,8 @@
                         <div class="legend-value">--</div>
                     </li>
                     <li layout horizontal main-justified class="chart-legend-row room-humidity humidity-group forced-hidden">
-                        <input type="checkbox" id="room-humidity" name="set-name" class="switch-input" checked>
-                        <label onclick="BChart.toggle(RoomHumidityLine)" for="room-humidity" class="switch-label"> <%= label_room_humidity %> </label>
+                        <input type="checkbox" id="l-room-humidity" name="set-name" class="switch-input" checked>
+                        <label onclick="BChart.toggle(RoomHumidityLine)" for="l-room-humidity" class="switch-label"> <%= label_room_humidity %> </label>
                         <div class="legend-value">--</div>
                     </li>
 
@@ -270,23 +272,22 @@
             </p>
             <ul style="list-style-type: none">
                 <li>
-                    <input class=sginput type="text" size="6" onchange=inputsg_change()><span class=platounit>&deg;P</span> @
-                    <input class=tempinput type="text" size="6" value="20" onchange=inputsg_change()>
-                    <sapn class=temp-unit>&deg;C</sapn>
-                </li>
-                <li>
-                    ~ <span id="sginput-hmc"></span> @ <span id="sginput-hm-cal-temp"></span>
-                    <sapn class=temp-unit>&deg;C</sapn>
+                    <input class=sginput type="text" size="6" onchange=inputsg_change()><span class=platounit>&deg;P</span>
                 </li>
                 <li>
                     ~ <span id="sginput-sg-ispindel"></span><span class=platounit>&deg;P</span> @ <span id="sginput-ispindel-temp"></span>
-                    <sapn class=temp-unit>&deg;C</sapn>
+                    &deg;<sapn class=temp-unit>C</sapn>
+                </li>
+                <li>
+                   <span class="gd-option ispindel-info pill-info"><%= ispindel_tilt %></span> 
+                   <span class="gd-option tilt-info"> <%= tilt_raw_sg %> </span>
+                   <input class=sginput type="text" size="6" id="tilt-angle" >
                 </li>
             </ul>
 
             <div class="dialog-buttons">
-                <button class="btn btn--rise" onclick="dismissgravity()"><%= dlg_cancel %></button>
-                <button class="btn btn--rise" onclick="inputgravity()"><%= dlg_ok %></button>
+                <button class="btn btn--rised" onclick="dismissgravity()"><%= dlg_cancel %></button>
+                <button class="btn btn--rised" onclick="inputgravity()"><%= dlg_ok %></button>
             </div>
         </div>
     </div>
@@ -326,7 +327,7 @@
                                 </tr>
                             </tobdy>
                         </table>
-                        <div style="float:right;"><button class="btn btn--rise" onclick="applyIgnoreMask()"><%= control_apply %></button></div>
+                        <div style="float:right;"><button class="btn btn--rised" onclick="applyIgnoreMask()"><%= control_apply %></button></div>
                     </td>
                     <td>
                         <div id="graph"></div>
@@ -335,7 +336,7 @@
                 </tr>
             </table>
             <div class="dialog-buttons">
-                <button class="btn btn--rise" onclick="closepolynomialpane()"><%= dlg_ok %></button>
+                <button class="btn btn--rised" onclick="closepolynomialpane()"><%= dlg_ok %></button>
             </div>
         </div>
     </div>

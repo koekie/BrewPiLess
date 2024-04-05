@@ -96,6 +96,7 @@ OneWire* DeviceManager::oneWireBus(uint8_t pin) {
 }
 
 bool DeviceManager::firstDeviceOutput;
+bool DeviceManager::fridgeSensorFallBack = false;
 
 bool DeviceManager::isDefaultTempSensor(BasicTempSensor* sensor) {
 	return sensor==&defaultTempSensor;
@@ -312,10 +313,12 @@ void DeviceManager::uninstallDevice(DeviceConfig& config)
 			s = &unwrapSensor(config.deviceFunction, *ppv);
 			if (s!=&defaultTempSensor) {
 				setSensor(config.deviceFunction, ppv, &defaultTempSensor);
-				#if FridgeSensorFallBack
-				if(config.deviceFunction == DEVICE_BEER_TEMP)
-					tempControl.fridgeSensor->setBackupSensor(&defaultTempSensor);
-				#endif
+				//#if FridgeSensorFallBack
+				if(fridgeSensorFallBack){ 
+					if(config.deviceFunction == DEVICE_BEER_TEMP)
+						tempControl.fridgeSensor->setBackupSensor(&defaultTempSensor);
+				} 
+				//#endif
 
 //				DEBUG_ONLY(logInfoInt(INFO_UNINSTALL_TEMP_SENSOR, config.deviceFunction));
 				delete s;
@@ -375,10 +378,12 @@ void DeviceManager::installDevice(DeviceConfig& config)
 			else {
 				ts = ((TempSensor*)*ppv);
 				ts->setSensor(s);
-				#if FridgeSensorFallBack
-				if(config.deviceFunction == DEVICE_BEER_TEMP)
-					tempControl.fridgeSensor->setBackupSensor(s);
-				#endif
+				//#if FridgeSensorFallBack
+				if(fridgeSensorFallBack){
+					if(config.deviceFunction == DEVICE_BEER_TEMP)
+						tempControl.fridgeSensor->setBackupSensor(s);
+				}
+				//#endif
 				ts->init();
 			}
 #if BREWPI_SIMULATE
@@ -704,7 +709,8 @@ void DeviceManager::printDevice(device_slot_t slot, DeviceConfig& config, const 
 	appendAttrib(deviceString, DEVICE_ATTRIB_DEACTIVATED, config.hw.deactivate);
 	appendAttrib(deviceString, DEVICE_ATTRIB_PIN, config.hw.pinNr);
 #if EnableDHTSensorSupport
-	if(config.deviceFunction == DEVICE_CHAMBER_HUMIDITY_SENSOR) //VTODO: PIN device: DHT serious, DEVICE_HARDWARE_BME280
+	if(config.deviceFunction == DEVICE_CHAMBER_HUMIDITY_SENSOR
+			|| config.deviceFunction == DEVICE_CHAMBER_ROOM_HUMIDITY_SENSOR) //VTODO: PIN device: DHT serious, DEVICE_HARDWARE_BME280
 		appendAttrib(deviceString,DEVICE_ATTRIB_HUMIDITY_SENSOR_TYPE,config.hw.humiditySensorType);
 #endif
 	if (value && *value) {
@@ -732,7 +738,8 @@ void DeviceManager::printDevice(device_slot_t slot, DeviceConfig& config, const 
 #if EnableDHTSensorSupport
 
 		||  config.deviceFunction==DEVICE_CHAMBER_HUMIDITY_SENSOR //VTODO
-		||  config.deviceHardware==DEVICE_HARDWARE_ENVIRONMENT_TEMP
+		||  config.deviceFunction == DEVICE_CHAMBER_ROOM_HUMIDITY_SENSOR
+		||  config.deviceHardware == DEVICE_HARDWARE_ENVIRONMENT_TEMP
 #endif
 	) {
 		tempDiffToString(buf, temperature(config.hw.calibration)<<(TEMP_FIXED_POINT_BITS-CALIBRATION_OFFSET_PRECISION), 3, 8);

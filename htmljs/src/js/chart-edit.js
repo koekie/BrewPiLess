@@ -1,10 +1,29 @@
+
+BrewChart.prototype.calInfo=function(){
+    var t=this;
+    var points=(t.version == CHART_V6)? t.getCalibration(): t.calpoints;
+
+    var cdata=new Uint8Array(2 + points.length * 4);
+    var idx=0;
+    cdata[idx++]=0xF3;
+    cdata[idx++]=points.length;
+    for(var i=0;i<points.length;i++){
+        var raw =Math.round((t.devType == 2)? points[i][0]*10000:points[i][0]*100);
+        var gravity =Math.round(t.plato? points[i][1]*100:points[i][1]*10000);
+        cdata[idx++]= (raw >> 8) & 0xFF;
+        cdata[idx++]= raw & 0xFF;
+        cdata[idx++]= (gravity >> 8) & 0xFF;
+        cdata[idx++]= gravity & 0xFF;
+    }
+    return cdata;
+}
 BrewChart.prototype.partial = function(start, end) {
     var me = this;
 
     var srow = me.findNearestRow(this.chart, start);
     var erow = me.findNearestRow(this.chart, end);
     var data = [];
-    var VERTAG = 5;
+    var VERTAG = 7;
     var st = Math.round(start / 1000);
 
     // create a header
@@ -19,6 +38,10 @@ BrewChart.prototype.partial = function(start, end) {
 
     //  Period Record x 2
     data.push(header);
+    if(typeof this["savedDevInfo"] != "undefined") data.push(this.savedDevInfo);
+    else data.push(new Uint8Array([1,1])); // default to iSpindel
+
+    data.push(this.calInfo());
     /*
     #define OrderBeerSet 0
     #define OrderBeerTemp 1
@@ -48,10 +71,10 @@ BrewChart.prototype.partial = function(start, end) {
 
     function encodePressure(p) {
         if (isNaN(p) || p==null) return [0x7F, 0xFF];
-        var sgint = Math.round(g * 10);
+        var sgint = Math.round(p * 10);
         return [(sgint >> 8) & 0xFF, sgint & 0xFF];
     }
-
+    
     function encodeTilt(tlt) {
         //        if(isNaN(tlt)) return [0x7F,0xFF];
         var tltInt = tlt * 100;
@@ -68,8 +91,8 @@ BrewChart.prototype.partial = function(start, end) {
             me.chart.getValue(row, FridgeSetLine),
             me.chart.getValue(row, RoomTempLine),
             me.chart.getValue(row, AuxTempLine),
-            me.rawSG[row],
-            me.angles[row]
+            me.angles[row],
+            me.chart.getValue(row, PressureLine)
         ];
         var mask = 0;
 
@@ -87,7 +110,7 @@ BrewChart.prototype.partial = function(start, end) {
                     } else if (i == 6) {
                         // gravity, after v6, this might be tilt or gravity
                         // The gravit data is user-input or calculated by BPL. 
-                        if(t.calibrating){
+                        if(me.calibrating){
                             var tilt = currentValues[6];
                             if (tilt != null && !isNaN(tilt)) {
                                 rec = rec.concat(encodeTilt(tilt));
@@ -153,6 +176,15 @@ BrewChart.prototype.partial = function(start, end) {
             data.push(new Uint8Array([0xF4, anno[aidx].shortText.charCodeAt(0)]));
             aidx++;
         }
+
+
+        if(me.calibrating && me.rawSG[r] !=null && !isNaN(me.rawSG[r]) ) {
+            var sg = [0xFB, 0];
+            data.push(new Uint8Array(sg.concat(encodeGravity(me.rawSG[r]))));
+        }
+    
+    
+    
     }
     return data;
 };
@@ -170,4 +202,47 @@ BrewChart.prototype.getModeBeforeTime = function(start) {
         }
     }
     return mode.charCodeAt(0);
+};
+BrewChart.prototype.end=function(){
+    return this.data[this.data.length -1][0];
+};
+BrewChart.prototype.start=function(){
+    return this.data[0][0];
+};
+
+BrewChart.prototype.getIndexOfTime = function(time) {
+    var start =this.start();
+    var end= this.end();
+    if( time < start || time > end) return -1;
+    return Math.round(this.data.length * (time - start)/(end - start));
+}
+
+BrewChart.prototype.getTiltAroundTime = function(time) {
+    var idx= this.getIndexOfTime(time);
+    if(idx < 0) return idx;
+    return this.getTiltAround(idx)[0];
+};
+
+BrewChart.prototype.addCalibration=function(time,sg){
+    var me=this;
+
+    var idx=me.getIndexOfTime(time);
+    var tidx;
+    var max= me.data.length;
+    for(var i=1;i<max;i++){
+        tidx= idx -i;
+        if(tidx > 0 && tidx < max){
+            if(me.rawSG[tidx] == null){
+                me.rawSG[tidx] = sg;
+                return;
+            }
+        }
+        tidx = idx +1;
+        if(tidx > 0 && tidx < max){
+            if(me.rawSG[tidx] == null){
+                me.rawSG[tidx] = sg;
+                return;
+            }          
+        }
+    }
 };
