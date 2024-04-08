@@ -31,11 +31,11 @@ extern ValueActuator defaultActuator;
 #define HumidifyingTargetHigh 5
 #define DehumidifyingTargetLow 5
 
-typedef enum _HumidityControlState{
+typedef enum _HumidityControlState {
     HC_Idle,
     HC_Dehumidifying,
     HC_Humidifying
-}HumidityControlState;
+} HumidityControlState;
 
 #define ToSystemTick(a) (a)*1000
 
@@ -51,6 +51,7 @@ public:
     HumidityControl():_mode(HC_ModeOff),_humidity(INVALID_HUMIDITY_VALUE),_state(HC_Idle),_prevState(HC_Idle){}    
     bool isChamberSensorInstalled(){ return chamberSensor != &nullEnvironmentSensor; }
     bool isRoomSensorInstalled(){ return roomSensor != &nullEnvironmentSensor; }
+
     uint8_t roomHumidity(){
         return roomSensor->humidity();
     }
@@ -121,9 +122,12 @@ public:
     bool isHumidityValid(){
         return  _humidity <=100; 
     }
+
+    uint8_t state() {
+        return _state;
+    }
     
-    
-    uint8_t mode(){
+    uint8_t mode() {
         return _cfg->mode;
         modeChanged();
     }

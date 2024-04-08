@@ -142,27 +142,32 @@ void MqttRemoteControl::_reportData(void){
         
         lastID=_publish(KeyState, (char)('0'+state));
 
-	    if(IS_FLOAT_TEMP_VALID(beerTemp)) lastID=_publish(KeyBeerTemp, beerTemp,1);
-	    if(IS_FLOAT_TEMP_VALID(beerSet)) lastID=_publish(KeyBeerSet, beerSet,1);
-	    if(IS_FLOAT_TEMP_VALID(fridgeTemp)) lastID=_publish(KeyFridgeTemp,fridgeTemp,1);
-	    if(IS_FLOAT_TEMP_VALID(fridgeSet)) lastID=_publish(KeyFridgeSet, fridgeSet,1);
-	    if(IS_FLOAT_TEMP_VALID(roomTemp)) lastID=_publish(KeyRoomTemp, roomTemp,1);
+	    if(IS_FLOAT_TEMP_VALID(beerTemp)) lastID=_publish(KeyBeerTemp, beerTemp, 1);
+	    if(IS_FLOAT_TEMP_VALID(beerSet)) lastID=_publish(KeyBeerSet, beerSet, 1);
+	    if(IS_FLOAT_TEMP_VALID(fridgeTemp)) lastID=_publish(KeyFridgeTemp,fridgeTemp, 1);
+	    if(IS_FLOAT_TEMP_VALID(fridgeSet)) lastID=_publish(KeyFridgeSet, fridgeSet, 1);
+	    if(IS_FLOAT_TEMP_VALID(roomTemp)) lastID=_publish(KeyRoomTemp, roomTemp, 1);
 
         lastID=_publish(KeyMode,(char)mode);
     	#if SupportPressureTransducer
-	        if(PressureMonitor.isCurrentPsiValid()) lastID=_publish(KeyPressure,PressureMonitor.currentPsi(),1);
+	        if(PressureMonitor.isCurrentPsiValid()) lastID=_publish(KeyPressure,PressureMonitor.currentPsi(), 1);
 	    #endif
     	float sg=externalData.gravity();
 	    if(IsGravityValid(sg)){
-		    lastID=_publish(KeyGravity, sg,5);
-		    lastID=_publish(KeyPlato, externalData.plato(),1);
+		    lastID=_publish(KeyGravity, sg, 5);
+		    lastID=_publish(KeyPlato, externalData.plato(), 1);
 	    }
 
     	#if EnableHumidityControlSupport
-	    if(humidityControl.isHumidityValid())  lastID=_publish(KeyFridgeHumidity,humidityControl.humidity());
+        lastID=_publish(KeyHumidityControlState, humidityControl.state(), 0);
+        lastID=_publish(KeyHumidityControlMode, humidityControl.mode(), 0);
+	    if(humidityControl.isHumidityValid()) {
+            lastID=_publish(KeyFridgeHumidity, humidityControl.humidity(), 1);
+            lastID=_publish(KeyHumidityTarget, humidityControl.targetRH(), 1);
+        }
 	    if(humidityControl.isRoomSensorInstalled()){
             uint8_t rh=humidityControl.roomHumidity();
-            if(rh <= 100) lastID=_publish(KeyRoomHumidity,,rh);
+            if(rh <= 100) lastID=_publish(KeyRoomHumidity, rh, 1);
         }
 	    #endif
 

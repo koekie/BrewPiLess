@@ -654,7 +654,7 @@ const ControlConstants TempControl::ccDefaults PROGMEM =
 	// Do Not change the order of these initializations!
 	/* tempFormat */ 'C',
 	/* tempSettingMin */ intToTemp(1),	// +1 deg Celsius
-	/* tempSettingMax */ intToTemp(50),	// +30 deg Celsius
+	/* tempSettingMax */ intToTemp(50),	// +50 deg Celsius
 
 	// control defines, also in fixed point format (7 int bits, 9 frac bits), so multiplied by 2^9=512
 	/* Kp	*/ intToTempDiff(5),	// +5

@@ -23,6 +23,13 @@ module.exports = (grunt) ->
           src: '**/*.*'
           dest: './build/js/'
         }]
+      #extraHmtlFiles:
+      #  files: [{
+      #    expand: true
+      #    cwd: '../extra'
+      #    src: '*.htm*'
+      #    dest: './build/'
+      #  }]
 
     htmlmin:
       dist:
@@ -75,7 +82,7 @@ module.exports = (grunt) ->
           'build/BPLLogViewer.tmpl.html': 'build/BPLLogViewer.tmpl.html',
           'build/BPLogWebViewer.tmpl.html': 'build/BPLogWebViewer.tmpl.html',
           'build/lcd.html': 'build/lcd.html',
-          'build/backup.html': 'build/backup.html'
+          'build/backup.htm': 'build/backup.htm'
         }]
 
     comboall:
@@ -94,7 +101,7 @@ module.exports = (grunt) ->
             { 'dist/BPLLogViewer.tmpl.htm': ['build/BPLLogViewer.tmpl.html'] },
             { 'dist/BPLogWebViewer.tmpl.htm': ['build/BPLogWebViewer.tmpl.html'] },
             { 'dist/lcd.htm': ['build/lcd.html']},
-            { 'dist/backup.htm': ['build/backup.html']}
+            { 'dist/backup.htm': ['build/backup.htm']}
         ]
 
     jshint:
@@ -165,7 +172,7 @@ module.exports = (grunt) ->
           'build/BPLLogViewer.tmpl.html': ['src/BPLLogViewer.tmpl.html']
           'build/BPLogWebViewer.tmpl.html': ['src/BPLogWebViewer.tmpl.html']
           'build/lcd.html' : ['src/lcd.html']
-          'build/backup.html' : ['src/backup.html']
+          #'build/backup.html' : ['../extra/backup.html']
         ]
   
     multi_lang_site_generator:

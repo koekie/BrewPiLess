@@ -2,6 +2,8 @@
 
 OUTDIR="cheader"
 DISTDIR="dist"
+STATIC_INCLUDES_DIR="static_includes"
+INCLUDE_DIR="../wdoc"
 
 if [ ! -d $OUTDIR ]; then
     echo "$OUTDIR not found!"
@@ -41,6 +43,21 @@ done
 }
 
 for lang in "${languages[@]}"; do
+    echo -e "\n*** Processing $lang"
     gen_C_file $lang
 done
 
+echo -e "\n*** Exporting files from OUTDIR [${OUTDIR}] to the INCLUDE_DIR [${INCLUDE_DIR}]"
+if [ ! -d $INCLUDE_DIR ]; then
+    echo "- $INCLUDE_DIR not found! Now creating ..."
+    mkdir "$INCLUDE_DIR"
+fi
+if [ "$(ls -A $INCLUDE_DIR)" ]; then
+    echo "- Files detected in [$INCLUDE_DIR]! -> Removing all files from [$INCLUDE_DIR]"
+    rm $INCLUDE_DIR/*.h || true
+fi
+echo "- Start copying everything from [$OUTDIR] to [$INCLUDE_DIR]"
+cp $OUTDIR/*.h $INCLUDE_DIR
+echo "- Injecting static includes"
+cp $STATIC_INCLUDES_DIR/*.h $INCLUDE_DIR
+echo -e "\n*** DONE ***"

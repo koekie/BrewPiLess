@@ -16,6 +16,9 @@
 #define KeyState "state"
 #define KeyFridgeHumidity "fridgeHumidity"
 #define KeyRoomHumidity "roomHumidity"
+#define KeyHumidityTarget "humidityTarget"
+#define KeyHumidityControlState "humidityCtrlState"
+#define KeyHumidityControlMode "humidityCtrlMode"
 #define KeyWirelessHydrometerRssi "hydrometerRssi"
 #define KeyWirelessHydrometerName "hydrometerName"
 

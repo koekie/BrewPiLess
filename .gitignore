@@ -7,8 +7,9 @@
 .vscode/c_cpp_properties.json
 htmljs/.sass-cache/
 htmljs/build/
+htmljs/dist/
+htmljs/cheader/
 htmljs/node_modules/
-*_backup_*
 .vscode/launch.json
 .DS_Store
 .vscode/*.db
