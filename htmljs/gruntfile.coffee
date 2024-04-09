@@ -172,7 +172,7 @@ module.exports = (grunt) ->
           'build/BPLLogViewer.tmpl.html': ['src/BPLLogViewer.tmpl.html']
           'build/BPLogWebViewer.tmpl.html': ['src/BPLogWebViewer.tmpl.html']
           'build/lcd.html' : ['src/lcd.html']
-          #'build/backup.html' : ['../extra/backup.html']
+          'build/backup.htm' : ['../extra/backup.htm']
         ]
   
     multi_lang_site_generator:

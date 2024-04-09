@@ -56,6 +56,14 @@ public:
         return roomSensor->humidity();
     }
     void updateState(){
+        Serial.printf("***\n");
+        Serial.printf("[Humidity Control]: Update State called ... with state: %d\n", _state);
+        Serial.printf("[Humidity Control]: humidity: %d\n", _humidity);
+        Serial.printf("[Humidity Control]: target: %d\n", _cfg->target);
+        Serial.printf("[Humidity Control]: last read time: %d\n", _lastreadtime);
+        Serial.printf("[Humidity Control]: last state change: %d\n", _lastStateChangeTime);
+        Serial.printf("[Humidity Control]: previous state: %d\n", _prevState);
+        Serial.printf("[Humidity Control]: mode: %d\n", _humidity);
         switch(_state){
             case HC_Idle:
                 if(_humidity > _cfg->target +_cfg->idleHigh){
@@ -193,6 +201,7 @@ private:
         _lastStateChangeTime=_lastreadtime;
         humidifier->setActive(true);
         DBG_PRINTF("start humidifier\n");
+        Serial.printf("start humidifier\n");
     }
 
     void _stopHumidifying(){
@@ -201,6 +210,7 @@ private:
         _lastStateChangeTime=_lastreadtime;
         humidifier->setActive(false);
         DBG_PRINTF("stop humidifier\n");
+        Serial.printf("Stop Humidifier\n");
     }
 
     void _startDehumidifying(){
@@ -209,6 +219,7 @@ private:
         _lastStateChangeTime=_lastreadtime;
         dehumidifier->setActive(true);
         DBG_PRINTF("start dehumidifier\n");        
+        Serial.printf("Start Dehumidifier\n");        
     }
 
     void _stopDehumidifying(){
@@ -217,6 +228,7 @@ private:
         _lastStateChangeTime=_lastreadtime;
         dehumidifier->setActive(false);
         DBG_PRINTF("stop dehumidifier\n");
+        Serial.printf("Stop Dehumidifier\n");
     }
 
     uint8_t _mode;
