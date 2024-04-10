@@ -56,50 +56,90 @@ public:
         return roomSensor->humidity();
     }
     void updateState(){
+        #if SerialDebug
         Serial.printf("***\n");
-        Serial.printf("[Humidity Control]: Update State called ... with state: %d\n", _state);
-        Serial.printf("[Humidity Control]: humidity: %d\n", _humidity);
-        Serial.printf("[Humidity Control]: target: %d\n", _cfg->target);
-        Serial.printf("[Humidity Control]: last read time: %d\n", _lastreadtime);
-        Serial.printf("[Humidity Control]: last state change: %d\n", _lastStateChangeTime);
-        Serial.printf("[Humidity Control]: previous state: %d\n", _prevState);
-        Serial.printf("[Humidity Control]: mode: %d\n", _humidity);
+        #endif
         switch(_state){
             case HC_Idle:
                 if(_humidity > _cfg->target +_cfg->idleHigh){
                     // start dehumidifying, if possible
+                    #if SerialDebug
+                    Serial.println("[Humidity Control]: Start dehumidifying if possible ...");
+                    #endif
                     if( dehumidifier != &defaultActuator){
+                        #if SerialDebug
+                        Serial.println("* Dehumidifier is currently not active");
+                        #endif
                         if( (_prevState == HC_Dehumidifying && (_lastreadtime - _lastStateChangeTime > ToSystemTick(_cfg->minDehumidifyingIdleTime)))
                          || ( (_prevState == HC_Humidifying || _prevState == HC_Idle )&& (_lastreadtime - _lastStateChangeTime > ToSystemTick(_cfg->minDeadTime) )) ){
+                            #if SerialDebug
+                            Serial.printf("[Humidity Control]: humidity: %d\n", _humidity);
+                            Serial.printf("[Humidity Control]: target: %d\n", _cfg->target);
+                            Serial.printf("[Humidity Control]: last read time: %d\n", _lastreadtime);
+                            Serial.printf("[Humidity Control]: last state change: %d\n", _lastStateChangeTime);
+                            Serial.printf("[Humidity Control]: previous state: %d\n", _prevState);
+                            #endif
                             _startDehumidifying();
                         }
                     }
                 }else  if(_humidity < _cfg->target - _cfg->idleLow){
                     // start humidifying
+                    #if SerialDebug
+                    Serial.println("[Humidity Control]: Start humidifying if possible ...");
+                    #endif
                     if( humidifier != &defaultActuator){
+                        #if SerialDebug
+                        Serial.println("* Humidifier is currently not active");
+                        #endif
                         if( (_prevState == HC_Humidifying && (_lastreadtime - _lastStateChangeTime > ToSystemTick(_cfg->minHumidifyingIdleTime)))
                          || ( (_prevState == HC_Dehumidifying || _prevState == HC_Idle )&& (_lastreadtime - _lastStateChangeTime > ToSystemTick(_cfg->minDeadTime) )) ){
+                            #if SerialDebug
+                            Serial.printf("[Humidity Control]: humidity: %d\n", _humidity);
+                            Serial.printf("[Humidity Control]: target: %d\n", _cfg->target);
+                            Serial.printf("[Humidity Control]: last read time: %d\n", _lastreadtime);
+                            Serial.printf("[Humidity Control]: last state change: %d\n", _lastStateChangeTime);
+                            Serial.printf("[Humidity Control]: previous state: %d\n", _prevState);
+                            #endif
                              _startHumidifying();
-
                         }
                     }
                 }
                 break;
 
             case HC_Dehumidifying:
+                #if SerialDebug
+                Serial.println("[Humidity Control]: Busy DEhumidifying ...");
+                #endif
                 if( (_humidity < _cfg->target - _cfg->dehumidifyingTargetLow  || _cfg->mode == HC_ModeOff) && 
                     _lastreadtime - _lastStateChangeTime > ToSystemTick(_cfg->minDehumidifyingRunningTime)){
+                        #if SerialDebug
+                        Serial.printf("[Humidity Control]: humidity: %d\n", _humidity);
+                        Serial.printf("[Humidity Control]: target: %d\n", _cfg->target);
+                        Serial.printf("[Humidity Control]: last read time: %d\n", _lastreadtime);
+                        Serial.printf("[Humidity Control]: last state change: %d\n", _lastStateChangeTime);
+                        Serial.printf("[Humidity Control]: previous state: %d\n", _prevState);
+                        #endif
                         _stopDehumidifying();
-                        if(_cfg->mode == HC_ModeOff) _mode =HC_ModeOff;
+                        if(_cfg->mode == HC_ModeOff) _mode = HC_ModeOff;
                 }
 
                 break;
 
             case HC_Humidifying:
+                #if SerialDebug
+                Serial.println("[Humidity Control]: Busy humidifying ...");
+                #endif
                 if( (_humidity > _cfg->target + _cfg->humidifyingTargetHigh || _cfg->mode == HC_ModeOff)
                     && _lastreadtime - _lastStateChangeTime > ToSystemTick(_cfg->minHumidifyingRunningTime)){
+                        #if SerialDebug
+                        Serial.printf("[Humidity Control]: humidity: %d\n", _humidity);
+                        Serial.printf("[Humidity Control]: target: %d\n", _cfg->target);
+                        Serial.printf("[Humidity Control]: last read time: %d\n", _lastreadtime);
+                        Serial.printf("[Humidity Control]: last state change: %d\n", _lastStateChangeTime);
+                        Serial.printf("[Humidity Control]: previous state: %d\n", _prevState);
+                        #endif
                         _stopHumidifying();                    
-                        if(_cfg->mode == HC_ModeOff) _mode =HC_ModeOff;
+                        if(_cfg->mode == HC_ModeOff) _mode = HC_ModeOff;
                 }
                 break;
         }
@@ -118,6 +158,9 @@ public:
 
                 //DBG_PRINTF("Humidity:%d\n",_humidity);
                 
+                #if SerialDebug
+                Serial.printf("[Humidity Control]: Going through the loop with -> State: %d, Mode: %d\n", _state, _mode);
+                #endif
                 if( _mode != HC_ModeOff && IsValidHumidityValue(_humidity)){
                     updateState();
                 }
@@ -137,11 +180,11 @@ public:
     
     uint8_t mode() {
         return _cfg->mode;
-        modeChanged();
     }
 
     void setMode(uint8_t mode){
         _cfg->mode = mode;
+        modeChanged();
     }    
     
     uint8_t targetRH(){
@@ -174,20 +217,35 @@ public:
         if(_cfg->mode == HC_ModeOff){
             // mode changed to OFF, but the minimum running time might not meet.
             if(_state == HC_Idle){
+                #if SerialDebug
+                Serial.print("[Humidity Control]: Stopping DEhumidifying because the Mode has been switched to off.");
+                #endif
                  _mode = HC_ModeOff;
             } else if (_state == HC_Humidifying){
                 if(_lastreadtime - _lastStateChangeTime > ToSystemTick(_cfg->minHumidifyingRunningTime)){
+                    #if SerialDebug
+                    Serial.print("[Humidity Control]: Stopping humidifying because the Mode has been switched to off.");
+                    #endif
                     _stopHumidifying();
                     _mode=HC_ModeOff;
                 }else{
                     // waiting for minMumidifyingRunningTime
+                    #if SerialDebug
+                    Serial.println("Mode switched to off, but the minimum running time has not been met yet, so continue until then ...");
+                    #endif
                 }
             }else if (_state == HC_Dehumidifying){
                 if(_lastreadtime - _lastStateChangeTime > ToSystemTick(_cfg->minDehumidifyingRunningTime)){
+                    #if SerialDebug
+                    Serial.print("[Humidity Control]: Stopping DEhumidifying because the Mode has been switched to off.");
+                    #endif
                     _stopDehumidifying();
                     _mode=HC_ModeOff;
                 }else{
                     // waiting for minDehumidifyingRunningTime
+                    #if SerialDebug
+                    Serial.println("Mode switched to off, but the minimum running time has not been met yet, so continue until then ...");
+                    #endif
                 }
             }
         }else {
@@ -201,7 +259,9 @@ private:
         _lastStateChangeTime=_lastreadtime;
         humidifier->setActive(true);
         DBG_PRINTF("start humidifier\n");
-        Serial.printf("start humidifier\n");
+        #if SerialDebug
+        Serial.printf("[Humidity Control]: *** START humidifier ***\n");
+        #endif
     }
 
     void _stopHumidifying(){
@@ -210,7 +270,9 @@ private:
         _lastStateChangeTime=_lastreadtime;
         humidifier->setActive(false);
         DBG_PRINTF("stop humidifier\n");
-        Serial.printf("Stop Humidifier\n");
+        #if SerialDebug
+        Serial.printf("[Humidity Control]: *** STOP Humidifier ***\n");
+        #endif
     }
 
     void _startDehumidifying(){
@@ -219,7 +281,9 @@ private:
         _lastStateChangeTime=_lastreadtime;
         dehumidifier->setActive(true);
         DBG_PRINTF("start dehumidifier\n");        
-        Serial.printf("Start Dehumidifier\n");        
+        #if SerialDebug
+        Serial.printf("[Humidity Control]: *** START DEhumidifier ***\n");
+        #endif
     }
 
     void _stopDehumidifying(){
@@ -228,7 +292,9 @@ private:
         _lastStateChangeTime=_lastreadtime;
         dehumidifier->setActive(false);
         DBG_PRINTF("stop dehumidifier\n");
-        Serial.printf("Stop Dehumidifier\n");
+        #if SerialDebug
+        Serial.printf("[Humidity Control]: *** STOP DEhumidifier ***\n");
+        #endif
     }
 
     uint8_t _mode;
